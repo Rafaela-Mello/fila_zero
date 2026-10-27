@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "./pages/LandingPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
+import PartnerRegisterPage from "./pages/PartnerRegisterPage.jsx";
+import PartnerDashboardPage from "./pages/PartnerDashboardPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function ProtectedRoute({ children }) {
@@ -32,6 +34,8 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/parceiro/cadastro" element={<PartnerRegisterPage />} />
+      <Route path="/parceiro" element={<PartnerDashboardPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

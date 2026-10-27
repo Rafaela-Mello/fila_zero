@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { reverseGeocode } from "../services/geocode.js";
+import { lookupCep, reverseGeocode } from "../services/geocode.js";
 
 const router = Router();
 
@@ -22,6 +22,20 @@ router.get("/reverse", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[geocode]", err.message);
     res.status(502).json({ error: "Não foi possível obter o endereço desse ponto." });
+  }
+});
+
+/** Público — cadastro de restaurante por CEP (ViaCEP + Nominatim). */
+router.get("/cep", async (req, res) => {
+  try {
+    const place = await lookupCep(req.query.cep);
+    res.json({ place });
+  } catch (err) {
+    console.error("[cep]", err.message);
+    const status = err.status || 502;
+    res.status(status).json({
+      error: err.message || "Não foi possível consultar esse CEP.",
+    });
   }
 });
 

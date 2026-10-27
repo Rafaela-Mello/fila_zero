@@ -66,8 +66,63 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const updateProfile = async ({ name, email }) => {
+    const res = await fetch("/auth/profile", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email }),
+    });
+    if (!res.ok) throw new Error(await parseError(res));
+    const data = await res.json();
+    setUser(data.user);
+    return data.user;
+  };
+
+  const changePassword = async ({ currentPassword, newPassword }) => {
+    const res = await fetch("/auth/password", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!res.ok) throw new Error(await parseError(res));
+    const data = await res.json();
+    if (data.user) setUser(data.user);
+    return data;
+  };
+
+  const deleteAccount = async ({ confirm, password }) => {
+    const res = await fetch("/auth/account", {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm, password }),
+    });
+    if (!res.ok) throw new Error(await parseError(res));
+    try {
+      localStorage.removeItem("filazero-chat-threads");
+    } catch {
+      /* ignore */
+    }
+    setUser(null);
+    return true;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, refresh, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        refresh,
+        login,
+        register,
+        logout,
+        updateProfile,
+        changePassword,
+        deleteAccount,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,8 @@ import session from "express-session";
 import passport from "passport";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { configurePassport } from "./config/passport.js";
 import { pingDb } from "./config/db.js";
@@ -10,8 +12,16 @@ import { ensureSchema } from "./db/ensureSchema.js";
 import authRoutes from "./routes/auth.js";
 import restaurantsRoutes from "./routes/restaurants.js";
 import geoRoutes from "./routes/geo.js";
+import userDataRoutes from "./routes/userData.js";
+import chatRoutes from "./routes/chat.js";
+import menusRoutes from "./routes/menus.js";
+import placesRoutes from "./routes/places.js";
+import partnersRoutes from "./routes/partners.js";
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.join(__dirname, "../uploads");
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -25,7 +35,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
+app.use("/uploads", express.static(uploadsDir));
 app.use(cookieParser());
 app.use(
   session({
@@ -55,6 +66,11 @@ app.get("/api/health", async (_req, res) => {
 app.use("/auth", authRoutes);
 app.use("/api/restaurants", restaurantsRoutes);
 app.use("/api/geo", geoRoutes);
+app.use("/api/me", userDataRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/menus", menusRoutes);
+app.use("/api/places", placesRoutes);
+app.use("/api/partners", partnersRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

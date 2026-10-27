@@ -2,7 +2,8 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { query } from "./db.js";
 
-const USER_FIELDS = "id, google_id, email, name, avatar_url";
+const USER_FIELDS =
+  "id, google_id, email, name, avatar_url, COALESCE(role, 'diner') AS role, (password_hash IS NOT NULL AND password_hash <> '') AS has_password";
 
 export function configurePassport() {
   passport.serializeUser((user, done) => {

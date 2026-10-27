@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { searchNearbyRestaurants } from "../services/places.js";
+import { searchNearbyRestaurants, CUISINE_TYPE_LABELS } from "../services/places.js";
 import { reverseGeocode } from "../services/geocode.js";
 
 const router = Router();
@@ -10,6 +10,12 @@ function requireAuth(req, res, next) {
   }
   return next();
 }
+
+router.get("/cuisine-types", requireAuth, (_req, res) => {
+  res.json({
+    types: Object.entries(CUISINE_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+  });
+});
 
 router.get("/nearby", requireAuth, async (req, res) => {
   try {
@@ -30,6 +36,8 @@ router.get("/nearby", requireAuth, async (req, res) => {
       req.query.selfService === "yes";
     const maxDistanceM = req.query.maxDistance != null ? Number(req.query.maxDistance) : null;
     const maxWait = req.query.maxWait != null ? Number(req.query.maxWait) : null;
+    const cuisineType = req.query.cuisineType ? String(req.query.cuisineType) : null;
+    const maxPrice = req.query.maxPrice != null ? Number(req.query.maxPrice) : null;
     const minRating = req.query.minRating != null ? Number(req.query.minRating) : null;
 
     const [result, place] = await Promise.all([
@@ -40,6 +48,8 @@ router.get("/nearby", requireAuth, async (req, res) => {
         selfService,
         maxDistanceM: Number.isFinite(maxDistanceM) ? maxDistanceM : null,
         maxWait: Number.isFinite(maxWait) ? maxWait : null,
+        cuisineType,
+        maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
         minRating: Number.isFinite(minRating) ? minRating : null,
       }),
       reverseGeocode(lat, lng).catch(() => null),
@@ -48,8 +58,7 @@ router.get("/nearby", requireAuth, async (req, res) => {
     res.json({
       ...result,
       place,
-      waitNote:
-        "Mapa e locais: OpenStreetMap (grátis). Tempo de espera é estimativa do FilaZero até os restaurantes parceiros atualizarem em tempo real.",
+      cuisineTypes: CUISINE_TYPE_LABELS,
     });
   } catch (err) {
     console.error("[places]", err.message);
