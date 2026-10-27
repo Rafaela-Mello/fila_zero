@@ -1,33 +1,94 @@
-import mysql from "mysql2/promise";
+import pg from "pg";
 import dotenv from "dotenv";
 
 dotenv.config();
 
+const { Pool } = pg;
+
 let pool;
 
-function getPool() {
+/** Converte `?` do estilo MySQL para `$1, $2, ...` do Postgres. */
+function toPgPlaceholders(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+/**
+ * Ajustes leves de dialeto MySQL → Postgres (intervalos, datas, etc.).
+ * ON DUPLICATE KEY / VALUES() precisam ser reescritos nas rotas.
+ */
+function adaptMysqlDialect(sql) {
+  return sql
+    .replace(/INTERVAL\s+(\d+)\s+MINUTE/gi, "INTERVAL '$1 minutes'")
+    .replace(/INTERVAL\s+(\d+)\s+DAY/gi, "INTERVAL '$1 days'")
+    .replace(/INTERVAL\s+(\d+)\s+HOUR/gi, "INTERVAL '$1 hours'")
+    .replace(/\bCURDATE\(\)/gi, "CURRENT_DATE")
+    .replace(/\bHOUR\(([^)]+)\)/gi, "EXTRACT(HOUR FROM $1)::int")
+    .replace(/\bDATE\(([^)]+)\)/gi, "($1)::date");
+}
+
+function databaseUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  // Fallback legado (MySQL env) — só ajuda se alguém colar URI Postgres em DB_HOST por engano
+  const host = process.env.DB_HOST;
+  if (host && host.startsWith("postgres")) return host;
+
+  return null;
+}
+
+export function getPool() {
   if (!pool) {
-    pool = mysql.createPool({
-      host: process.env.DB_HOST || "127.0.0.1",
-      port: Number(process.env.DB_PORT || 3306),
-      user: process.env.DB_USER || "filazero",
-      password: process.env.DB_PASSWORD || "",
-      database: process.env.DB_NAME || "filazero",
-      waitForConnections: true,
-      connectionLimit: 10,
+    const connectionString = databaseUrl();
+    if (!connectionString) {
+      throw new Error(
+        "Defina DATABASE_URL no .env (Supabase → Project Settings → Database → URI)."
+      );
+    }
+    pool = new Pool({
+      connectionString,
+      ssl: process.env.DB_SSL === "false" ? false : { rejectUnauthorized: false },
+      max: Number(process.env.DB_POOL_MAX || 5),
     });
   }
   return pool;
 }
 
+/**
+ * Executa SQL. Mantém API parecida com mysql2:
+ * - SELECT → array de rows
+ * - INSERT com id → rows + `.insertId`
+ */
 export async function query(sql, params = []) {
-  const [rows] = await getPool().execute(sql, params);
-  return rows;
+  let text = adaptMysqlDialect(toPgPlaceholders(sql));
+  const isInsert = /^\s*INSERT\s+/i.test(text);
+  if (isInsert && !/\bRETURNING\b/i.test(text)) {
+    text = `${text.replace(/;?\s*$/, "")} RETURNING id`;
+  }
+
+  const result = await getPool().query(text, params);
+
+  if (isInsert) {
+    const insertId = result.rows[0]?.id ?? 0;
+    return Object.assign(result.rows, {
+      insertId,
+      affectedRows: result.rowCount,
+    });
+  }
+
+  if (result.command === "UPDATE" || result.command === "DELETE") {
+    return Object.assign(result.rows, {
+      affectedRows: result.rowCount,
+      insertId: 0,
+    });
+  }
+
+  return result.rows;
 }
 
 export async function pingDb() {
   const rows = await query("SELECT 1 AS ok");
-  return rows[0]?.ok === 1;
+  return Number(rows[0]?.ok) === 1;
 }
 
 export default getPool;

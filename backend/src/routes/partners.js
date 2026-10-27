@@ -1,20 +1,12 @@
 import { Router } from "express";
-import bcrypt from "bcrypt";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { query } from "../config/db.js";
+import { saveMenuPhoto } from "../services/storage.js";
 import { waitLevel, haversineMeters, formatDistance, formatWalk } from "../services/places.js";
 
 const router = Router();
 const SALT_ROUNDS = 10;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MENU_UPLOAD_DIR = path.join(__dirname, "../../uploads/menu");
-
-function ensureMenuUploadDir() {
-  fs.mkdirSync(MENU_UPLOAD_DIR, { recursive: true });
-}
 
 function normalizeMenuImage(value) {
   if (value == null || value === "") return null;
@@ -482,11 +474,10 @@ router.post("/me/menu/photo", requireAuth, async (req, res) => {
     }
 
     const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
-    ensureMenuUploadDir();
     const filename = `${row.placeId.replace(/[^a-zA-Z0-9_-]/g, "_")}-${randomUUID()}.${ext}`;
-    fs.writeFileSync(path.join(MENU_UPLOAD_DIR, filename), buffer);
+    const imageUrl = await saveMenuPhoto({ buffer, mime, filename });
 
-    res.json({ ok: true, imageUrl: `/uploads/menu/${filename}` });
+    res.json({ ok: true, imageUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -529,8 +520,10 @@ router.put("/me/menu", requireAuth, async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     await query(
       `INSERT INTO daily_menus (place_id, place_name, menu_date, items_json)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE place_name = VALUES(place_name), items_json = VALUES(items_json)`,
+       VALUES (?, ?, ?, ?::jsonb)
+       ON CONFLICT (place_id, menu_date) DO UPDATE SET
+         place_name = EXCLUDED.place_name,
+         items_json = EXCLUDED.items_json`,
       [row.placeId, row.name, today, JSON.stringify(normalized)]
     );
 
@@ -622,7 +615,7 @@ router.patch("/me/hours", requireAuth, async (req, res) => {
     const row = await getOwned(req.user.id);
     if (!row) return res.status(404).json({ error: "Nenhum restaurante cadastrado." });
     const hours = normalizeHours(req.body?.hours);
-    await query(`UPDATE partner_restaurants SET hours_json = ? WHERE owner_user_id = ?`, [
+    await query(`UPDATE partner_restaurants SET hours_json = ?::jsonb WHERE owner_user_id = ?`, [
       JSON.stringify(hours),
       req.user.id,
     ]);

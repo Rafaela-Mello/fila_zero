@@ -178,14 +178,14 @@ router.post("/:placeId/feedback", requireAuth, async (req, res) => {
       `INSERT INTO place_feedback
          (user_id, place_id, place_name, place_address, lat, lng, rating, wait_minutes, comment)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         place_name = VALUES(place_name),
-         place_address = VALUES(place_address),
-         lat = VALUES(lat),
-         lng = VALUES(lng),
-         rating = VALUES(rating),
-         wait_minutes = VALUES(wait_minutes),
-         comment = VALUES(comment)`,
+       ON CONFLICT (user_id, place_id) DO UPDATE SET
+         place_name = EXCLUDED.place_name,
+         place_address = EXCLUDED.place_address,
+         lat = EXCLUDED.lat,
+         lng = EXCLUDED.lng,
+         rating = EXCLUDED.rating,
+         wait_minutes = EXCLUDED.wait_minutes,
+         comment = EXCLUDED.comment`,
       [
         req.user.id,
         placeId,

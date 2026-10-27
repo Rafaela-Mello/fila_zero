@@ -3,20 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "db:init": "node src/db/init.js"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "bcryptjs": "^2.4.3",
+    "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "mysql2": "^3.12.0",
     "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0"
+    "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.13.3"
   }
 }

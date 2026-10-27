@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://fila-zero-one.vercel.app/api/:path*"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://fila-zero-one.vercel.app/auth/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://fila-zero-one.vercel.app/uploads/:path*"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import passport from "passport";
 import { query } from "../config/db.js";
 
@@ -248,11 +248,20 @@ router.post("/password", async (req, res, next) => {
   }
 });
 
+function clearSessionCookie(res) {
+  const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+  res.clearCookie("connect.sid", {
+    httpOnly: true,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+  });
+}
+
 router.post("/logout", (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
     req.session.destroy(() => {
-      res.clearCookie("connect.sid");
+      clearSessionCookie(res);
       res.json({ ok: true });
     });
   });
@@ -296,7 +305,7 @@ router.delete("/account", async (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
       req.session.destroy(() => {
-        res.clearCookie("connect.sid");
+        clearSessionCookie(res);
         res.json({ ok: true });
       });
     });

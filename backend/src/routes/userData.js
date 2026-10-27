@@ -36,8 +36,11 @@ router.post("/favorites", async (req, res) => {
     await query(
       `INSERT INTO favorites (user_id, place_id, place_name, place_address, lat, lng)
        VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE place_name = VALUES(place_name), place_address = VALUES(place_address),
-         lat = VALUES(lat), lng = VALUES(lng)`,
+       ON CONFLICT (user_id, place_id) DO UPDATE SET
+         place_name = EXCLUDED.place_name,
+         place_address = EXCLUDED.place_address,
+         lat = EXCLUDED.lat,
+         lng = EXCLUDED.lng`,
       [req.user.id, placeId, placeName, placeAddress || null, lat ?? null, lng ?? null]
     );
     res.json({ ok: true });

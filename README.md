@@ -4,6 +4,18 @@ Veja o tempo de espera estimado e a lotação de restaurantes próximos **antes*
 
 Projeto de Empreendedorismo — IFSP.
 
+## Deploy (produção)
+
+| Parte | URL |
+|------|-----|
+| Frontend | https://filazero-sandy.vercel.app |
+| Backend (API) | https://fila-zero-one.vercel.app |
+| Health check | https://fila-zero-one.vercel.app/api/health |
+
+- **Frontend** na Vercel (preset Vite, root `frontend`) — `vercel.json` faz proxy de `/api`, `/auth` e `/uploads` para o backend.
+- **Backend** na Vercel (root `backend`) — Express em serverless (`api/index.js`).
+- **Banco** no **Supabase** (Postgres). Fotos do cardápio no **Supabase Storage** (bucket público `menu`).
+
 ## O que tem
 
 | Rota | O que é |
@@ -37,9 +49,9 @@ Projeto de Empreendedorismo — IFSP.
 Mapa e locais: **OpenStreetMap** (Overpass / Nominatim — grátis).  
 Parceiros publicados entram no Explorar com espera e status reais.
 
-## Como rodar
+## Como rodar (local)
 
-Precisa de **Node 20+** e **MySQL**.
+Precisa de **Node 20+** e um banco **Postgres** (Supabase).
 
 No WSL:
 
@@ -52,13 +64,14 @@ nvm use 20
 
 ```bash
 cd backend
-cp .env.example .env   # ajuste DB_* se precisar
+cp .env.example .env   # preencha DATABASE_URL e chaves Supabase
 npm install
+npm run db:init        # cria tabelas (ou sobe com npm run dev)
 npm run dev
 ```
 
-Na primeira subida o backend cria o banco/tabelas sozinho (`ensureSchema`).  
-Uploads de foto do cardápio ficam em `backend/uploads/`.
+Na primeira subida o backend cria as tabelas sozinho (`ensureSchema`).  
+Fotos do cardápio: com Supabase configurado vão para o Storage; sem isso, em local podem ir para `backend/uploads/`.
 
 **2. Frontend** (outro terminal)
 
@@ -71,12 +84,20 @@ npm run dev
 Abra http://localhost:5173  
 O Vite faz proxy de `/api`, `/auth` e `/uploads` para o backend (`:3001`).
 
-## MySQL (WSL + Windows)
+## Variáveis de ambiente (backend)
 
-Se o Node está no WSL e o MySQL no Windows, `DB_HOST` **não** é `localhost`.  
-Use o IP do Windows visto pelo WSL (ex.: `172.23.128.1`) e um usuário com host `%` (ex.: `filazero`).
+Detalhes e exemplos: `backend/.env.example`.
 
-Detalhes das variáveis: `backend/.env.example`.
+| Variável | Uso |
+|----------|-----|
+| `DATABASE_URL` | URI Postgres do Supabase (preferir pooler **Transaction**, porta 6543) |
+| `SUPABASE_URL` | URL do projeto (Settings → API) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (Settings → API) — só no servidor |
+| `SUPABASE_MENU_BUCKET` | Bucket de fotos (padrão `menu`) |
+| `SESSION_SECRET` | Segredo da sessão |
+| `FRONTEND_URL` | Origem liberada no CORS (local: `http://localhost:5173`; prod: `https://filazero-sandy.vercel.app`) |
+
+Na Vercel do **backend**, configure as mesmas variáveis e use `FRONTEND_URL=https://filazero-sandy.vercel.app`.
 
 ## Assistente (opcional)
 
