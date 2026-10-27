@@ -230,14 +230,39 @@ export function useUserExtras() {
 
   const reload = async () => {
     try {
-      const [f, h, s] = await Promise.all([
-        fetch("/api/me/favorites", { credentials: "include" }).then((r) => r.json()),
-        fetch("/api/me/history", { credentials: "include" }).then((r) => r.json()),
-        fetch("/api/chat/status", { credentials: "include" }).then((r) => r.json()),
+      const [fRes, hRes, sRes] = await Promise.all([
+        fetch("/api/me/favorites", { credentials: "include" }),
+        fetch("/api/me/history", { credentials: "include" }),
+        fetch("/api/chat/status", { credentials: "include" }),
       ]);
-      setFavorites(f.favorites || []);
-      setHistory(h.history || []);
-      setAssistant(s || { enabled: false });
+      const [f, h, s] = await Promise.all([
+        fRes.json().catch(() => ({})),
+        hRes.json().catch(() => ({})),
+        sRes.json().catch(() => ({})),
+      ]);
+      if (fRes.ok) {
+        setFavorites(
+          (f.favorites || []).map((row) => ({
+            ...row,
+            placeId: row.placeId ?? row.placeid,
+            placeName: row.placeName ?? row.placename,
+            placeAddress: row.placeAddress ?? row.placeaddress,
+            createdAt: row.createdAt ?? row.createdat,
+          }))
+        );
+      }
+      if (hRes.ok) {
+        setHistory(
+          (h.history || []).map((row) => ({
+            ...row,
+            placeId: row.placeId ?? row.placeid,
+            placeName: row.placeName ?? row.placename,
+            placeAddress: row.placeAddress ?? row.placeaddress,
+            visitedAt: row.visitedAt ?? row.visitedat,
+          }))
+        );
+      }
+      if (sRes.ok) setAssistant(s || { enabled: false });
     } catch {
       /* ignore */
     }
@@ -248,19 +273,39 @@ export function useUserExtras() {
   }, []);
 
   const toggleFavorite = async (place) => {
-    const exists = favorites.some((f) => f.placeId === place.id);
+    if (!place?.id) throw new Error("Lugar inválido para favoritar.");
+    const placeId = String(place.id);
+    const exists = favorites.some((f) => String(f.placeId) === placeId);
+
+    // UI otimista
     if (exists) {
-      await fetch(`/api/me/favorites/${encodeURIComponent(place.id)}`, {
+      setFavorites((prev) => prev.filter((f) => String(f.placeId) !== placeId));
+    } else {
+      setFavorites((prev) => [
+        {
+          placeId,
+          placeName: place.name,
+          placeAddress: place.address || null,
+          lat: place.lat ?? null,
+          lng: place.lng ?? null,
+        },
+        ...prev,
+      ]);
+    }
+
+    let res;
+    if (exists) {
+      res = await fetch(`/api/me/favorites?placeId=${encodeURIComponent(placeId)}`, {
         method: "DELETE",
         credentials: "include",
       });
     } else {
-      await fetch("/api/me/favorites", {
+      res = await fetch("/api/me/favorites", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          placeId: place.id,
+          placeId,
           placeName: place.name,
           placeAddress: place.address,
           lat: place.lat,
@@ -268,11 +313,20 @@ export function useUserExtras() {
         }),
       });
     }
+
+    if (!res.ok) {
+      await reload();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        throw new Error("Sessão expirada. Faça login de novo para favoritar.");
+      }
+      throw new Error(data.error || "Não foi possível atualizar o favorito.");
+    }
     await reload();
   };
 
   const addHistory = async (place, note) => {
-    await fetch("/api/me/history", {
+    const res = await fetch("/api/me/history", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -285,10 +339,18 @@ export function useUserExtras() {
         note: note || "Almoço",
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        throw new Error("Sessão expirada. Faça login de novo.");
+      }
+      throw new Error(data.error || "Não foi possível salvar no histórico.");
+    }
     await reload();
   };
 
-  const isFavorite = (placeId) => favorites.some((f) => f.placeId === placeId);
+  const isFavorite = (placeId) =>
+    favorites.some((f) => String(f.placeId) === String(placeId));
 
   return {
     favorites,

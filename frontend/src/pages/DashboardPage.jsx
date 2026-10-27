@@ -76,6 +76,64 @@ function estimateMealMinutes(place) {
   return 35;
 }
 
+function approxDistanceM(from, to) {
+  const lat1 = Number(from?.lat);
+  const lng1 = Number(from?.lng);
+  const lat2 = Number(to?.lat);
+  const lng2 = Number(to?.lng);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(a))));
+}
+
+function placeFromFavorite(fav, origin) {
+  const id = String(fav.placeId ?? fav.placeid ?? "");
+  const name = fav.placeName ?? fav.placename ?? "Restaurante";
+  const address = fav.placeAddress ?? fav.placeaddress ?? "—";
+  const lat = fav.lat != null ? Number(fav.lat) : null;
+  const lng = fav.lng != null ? Number(fav.lng) : null;
+  const distanceM =
+    lat != null && lng != null ? approxDistanceM(origin, { lat, lng }) : null;
+  const walkMin =
+    distanceM != null ? Math.max(1, Math.round(distanceM / 80)) : null;
+  const query = [name, address, lat != null && lng != null ? `${lat},${lng}` : ""]
+    .filter(Boolean)
+    .join(" ");
+  return {
+    id,
+    name,
+    address,
+    lat,
+    lng,
+    favorite: true,
+    waitMinutes: 12,
+    waitLabel: "Estimativa",
+    waitLevel: "mid",
+    distanceM,
+    distanceLabel:
+      distanceM == null
+        ? "—"
+        : distanceM >= 1000
+          ? `${(distanceM / 1000).toFixed(1)} km`
+          : `${distanceM} m`,
+    walkLabel: walkMin != null ? `~${walkMin} min a pé` : "—",
+    cuisineTypeLabel: "Restaurante",
+    priceLabel: null,
+    rating: null,
+    mapsPlaceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+    mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+    googleMapsDirUrl:
+      lat != null && lng != null
+        ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=walking`
+        : null,
+  };
+}
+
 /** Rota do Almoço Rápido: deslocamento ida+volta (pé ou carro) + fila + refeição */
 function computeLunchRoute(place) {
   if (!place) return null;
@@ -373,12 +431,14 @@ export default function DashboardPage() {
     return null;
   }, [histPlaces, histSelectedId, coords]);
 
+  // Só limpa a seleção se o favorito deixou de existir — não reabre automaticamente
   useEffect(() => {
-    if (panel !== "fav") return;
-    if (favSelectedId && extras.favorites.some((f) => f.placeId === favSelectedId)) return;
-    const firstWithCoords = extras.favorites.find((f) => f.lat != null && f.lng != null);
-    setFavSelectedId(firstWithCoords?.placeId || null);
-  }, [panel, extras.favorites, favSelectedId]);
+    if (!favSelectedId) return;
+    const stillThere = extras.favorites.some(
+      (f) => String(f.placeId ?? f.placeid) === String(favSelectedId)
+    );
+    if (!stillThere) setFavSelectedId(null);
+  }, [extras.favorites, favSelectedId]);
 
   useEffect(() => {
     if (panel !== "hist") return;
@@ -395,6 +455,25 @@ export default function DashboardPage() {
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches) {
       setMenuOpen(false);
     }
+  };
+
+  const selectedFavPlace = useMemo(() => {
+    if (!favSelectedId) return null;
+    const fromExplore = restaurants.find((r) => String(r.id) === String(favSelectedId));
+    if (fromExplore) return fromExplore;
+    const fav = extras.favorites.find(
+      (f) => String(f.placeId ?? f.placeid) === String(favSelectedId)
+    );
+    return fav ? placeFromFavorite(fav, coords) : null;
+  }, [favSelectedId, restaurants, extras.favorites, coords]);
+
+  const favLunchRoute = useMemo(
+    () => computeLunchRoute(selectedFavPlace),
+    [selectedFavPlace]
+  );
+
+  const toggleFavoriteCard = (placeId) => {
+    setFavSelectedId((prev) => (prev === placeId ? null : placeId));
   };
 
   return (
@@ -549,48 +628,188 @@ export default function DashboardPage() {
                     {extras.favorites.length === 0 && (
                       <li className="empty">Nenhum favorito ainda. Favorite um restaurante em Explorar.</li>
                     )}
-                    {extras.favorites.map((f) => {
+                    {extras.favorites.map((f, index) => {
+                      const placeId = f.placeId ?? f.placeid;
+                      const placeName = f.placeName ?? f.placename ?? "Restaurante";
+                      const placeAddress = f.placeAddress ?? f.placeaddress;
                       const hasCoords = f.lat != null && f.lng != null;
+                      const expanded = favSelectedId === placeId;
+                      const detail = expanded ? selectedFavPlace : null;
                       return (
                         <li
-                          key={f.placeId}
-                          className={`fav-row ${favSelectedId === f.placeId ? "is-selected" : ""}`}
+                          key={f.id != null ? `fav-${f.id}` : `fav-${placeId}-${index}`}
+                          className={`fav-row ${expanded ? "is-selected is-expanded" : ""}`}
                         >
-                          <div className="fav-row-info">
-                            <strong>★ {f.placeName}</strong>
-                            <span>{f.placeAddress || "—"}</span>
-                </div>
-                          <div className="fav-row-actions">
+                          <div className="fav-row-top">
                             <button
                               type="button"
-                              className="fav-icon-btn"
-                              title={hasCoords ? "Ver no mapa" : "Sem localização salva"}
-                              aria-label={`Ver ${f.placeName} no mapa`}
-                              disabled={!hasCoords}
-                              onClick={() => setFavSelectedId(f.placeId)}
+                              className="fav-row-main"
+                              aria-expanded={expanded}
+                              aria-label={expanded ? `Fechar ${placeName}` : `Abrir ${placeName}`}
+                              onClick={() => toggleFavoriteCard(placeId)}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z" />
-                                <circle cx="12" cy="10" r="2.5" />
-                              </svg>
-                </button>
-                            <button
-                              type="button"
-                              className="fav-remove-btn"
-                              onClick={async () => {
-                                await extras.toggleFavorite({
-                                  id: f.placeId,
-                                  name: f.placeName,
-                                  address: f.placeAddress,
-                                  lat: f.lat,
-                                  lng: f.lng,
-                                });
-                                if (favSelectedId === f.placeId) setFavSelectedId(null);
-                              }}
-                            >
-                              Remover
+                              <strong>★ {placeName}</strong>
+                              <span>{placeAddress || "—"}</span>
                             </button>
+                            <div className="fav-row-actions">
+                              <button
+                                type="button"
+                                className="fav-icon-btn"
+                                title={hasCoords ? "Ver no mapa" : "Sem localização salva"}
+                                aria-label={`Ver ${placeName} no mapa`}
+                                disabled={!hasCoords}
+                                onClick={() => setFavSelectedId(placeId)}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z" />
+                                  <circle cx="12" cy="10" r="2.5" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                className="fav-remove-btn"
+                                onClick={async () => {
+                                  try {
+                                    await extras.toggleFavorite({
+                                      id: placeId,
+                                      name: placeName,
+                                      address: placeAddress,
+                                      lat: f.lat,
+                                      lng: f.lng,
+                                    });
+                                    if (favSelectedId === placeId) setFavSelectedId(null);
+                                    showToast("Removido dos favoritos");
+                                  } catch (err) {
+                                    showToast(err.message || "Não foi possível remover");
+                                  }
+                                }}
+                              >
+                                Remover
+                              </button>
+                            </div>
                           </div>
+
+                          {expanded && detail && (
+                            <div className="fav-row-detail">
+                              <p className="detail-kicker">Favorito</p>
+                              <h2>{detail.name}</h2>
+                              <p className="detail-addr">{detail.address}</p>
+                              <ul className="detail-meta">
+                                <li>
+                                  <strong>Deslocamento</strong>
+                                  <span>
+                                    {detail.distanceLabel}
+                                    {favLunchRoute
+                                      ? ` · ${favLunchRoute.walkOneWay} min a pé · ${favLunchRoute.driveOneWay} min de carro`
+                                      : detail.walkLabel
+                                        ? ` · ${detail.walkLabel}`
+                                        : ""}
+                                  </span>
+                                </li>
+                                <li>
+                                  <strong>Espera</strong>
+                                  <span>
+                                    {detail.openNow === false
+                                      ? "Fechado agora"
+                                      : `~${detail.waitMinutes ?? "—"} min · ${detail.waitLabel || "Estimativa"}`}
+                                  </span>
+                                </li>
+                                <li>
+                                  <strong>Tipo</strong>
+                                  <span>{detail.cuisineTypeLabel || "Restaurante"}</span>
+                                </li>
+                                <li>
+                                  <strong>Preço / nota</strong>
+                                  <span>
+                                    {detail.priceLabel || "—"} · ★ {detail.rating ?? "—"}
+                                  </span>
+                                </li>
+                              </ul>
+
+                              {favLunchRoute && (
+                                <div className="lunch-route fav-lunch-route" aria-label="Rota do Almoço Rápido">
+                                  <div className="lunch-route-head">
+                                    <p className="lunch-route-kicker">Diferencial FilaZero</p>
+                                    <h3>Rota do Almoço Rápido</h3>
+                                  </div>
+                                  <div className="lunch-route-totals">
+                                    <p className="lunch-route-total">
+                                      <em>A pé</em>
+                                      <strong>~{favLunchRoute.totalWalk} min</strong>
+                                    </p>
+                                    <p className="lunch-route-total">
+                                      <em>De carro</em>
+                                      <strong>~{favLunchRoute.totalDrive} min</strong>
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="detail-actions">
+                                <button
+                                  type="button"
+                                  className="btn-primary maps"
+                                  disabled={goingNow}
+                                  onClick={async () => {
+                                    const mapsUrl = buildGoNowUrl(detail, coords);
+                                    setGoingNow(true);
+                                    try {
+                                      await extras.addHistory(detail, "Vou agora");
+                                      if (detail.isPartner) {
+                                        trackGoNow(detail).catch(() => {});
+                                      }
+                                      if (mapsUrl) {
+                                        window.open(mapsUrl, "_blank", "noopener,noreferrer");
+                                        showToast("Rota aberta · depois conta a espera no feedback");
+                                      } else {
+                                        showToast("Sem coordenadas para abrir a rota");
+                                      }
+                                    } catch {
+                                      if (mapsUrl) {
+                                        window.open(mapsUrl, "_blank", "noopener,noreferrer");
+                                        showToast("Rota aberta · histórico não salvo");
+                                      } else {
+                                        showToast("Não foi possível abrir a rota");
+                                      }
+                                    } finally {
+                                      setGoingNow(false);
+                                    }
+                                  }}
+                                >
+                                  {goingNow ? "Abrindo…" : "Vou agora"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-nav"
+                                  onClick={async () => {
+                                    try {
+                                      const mode = await sharePlace(detail);
+                                      showToast(
+                                        mode === "copied" ? "Link copiado" : "Compartilhado"
+                                      );
+                                    } catch {
+                                      showToast("Não foi possível compartilhar");
+                                    }
+                                  }}
+                                >
+                                  Compartilhar
+                                </button>
+                                <a
+                                  className="btn-nav"
+                                  href={
+                                    detail.websiteUrl ||
+                                    detail.mapsPlaceUrl ||
+                                    detail.mapsUrl ||
+                                    "#"
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {detail.websiteUrl ? "Site do lugar" : "Ver no Google"}
+                                </a>
+                              </div>
+                            </div>
+                          )}
                         </li>
                       );
                     })}
@@ -872,28 +1091,33 @@ export default function DashboardPage() {
                                 </p>
                               </div>
                               <ul className="lunch-route-breakdown">
-                                <li>
-                                  <span>Ida</span>
-                                  <strong>
-                                    {lunchRoute.walkOneWay} min a pé · {lunchRoute.driveOneWay} min
-                                    carro
-                                  </strong>
-                                </li>
-                                <li>
-                                  <span>Tempo na fila</span>
-                                  <strong>{lunchRoute.queue} min</strong>
-                                </li>
-                                <li>
-                                  <span>Tempo de refeição</span>
-                                  <strong>{lunchRoute.meal} min</strong>
-                                </li>
-                                <li>
-                                  <span>Volta</span>
-                                  <strong>
-                                    {lunchRoute.walkOneWay} min a pé · {lunchRoute.driveOneWay} min
-                                    carro
-                                  </strong>
-                                </li>
+                                {[
+                                  {
+                                    key: "ida",
+                                    label: "Ida",
+                                    value: `${lunchRoute.walkOneWay} min a pé · ${lunchRoute.driveOneWay} min carro`,
+                                  },
+                                  {
+                                    key: "fila",
+                                    label: "Tempo na fila",
+                                    value: `${lunchRoute.queue} min`,
+                                  },
+                                  {
+                                    key: "refeicao",
+                                    label: "Tempo de refeição",
+                                    value: `${lunchRoute.meal} min`,
+                                  },
+                                  {
+                                    key: "volta",
+                                    label: "Volta",
+                                    value: `${lunchRoute.walkOneWay} min a pé · ${lunchRoute.driveOneWay} min carro`,
+                                  },
+                                ].map((row) => (
+                                  <li key={row.key}>
+                                    <span>{row.label}</span>
+                                    <strong>{row.value}</strong>
+                                  </li>
+                                ))}
                               </ul>
                               <p className="lunch-route-formula">
                                 Total = ida + fila + refeição + volta (pé ou carro)
@@ -938,7 +1162,15 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               className="btn-nav"
-                              onClick={() => extras.toggleFavorite(selected)}
+                              onClick={async () => {
+                                const wasFav = extras.isFavorite(selected.id);
+                                try {
+                                  await extras.toggleFavorite(selected);
+                                  showToast(wasFav ? "Removido dos favoritos" : "Salvo nos favoritos");
+                                } catch (err) {
+                                  showToast(err.message || "Não foi possível favoritar");
+                                }
+                              }}
                             >
                               {extras.isFavorite(selected.id) ? "Remover favorito" : "Favoritar"}
                             </button>
@@ -1085,8 +1317,11 @@ export default function DashboardPage() {
                               <ul className="feedback-list">
                                 {mergeFeedbacksWithMocks(placeFeedback?.reviews)
                                   .slice(0, 5)
-                                  .map((r) => (
-                                    <li key={r.id} className={r.isMock ? "is-mock" : ""}>
+                                  .map((r, index) => (
+                                    <li
+                                      key={r.isMock ? `mock-${r.id}` : `fb-${r.id ?? index}`}
+                                      className={r.isMock ? "is-mock" : ""}
+                                    >
                                       <strong>
                                         {(r.userName || "Alguém").split(/\s+/)[0]} · ★ {r.rating}
                                         {r.isMock ? (
@@ -1167,8 +1402,8 @@ export default function DashboardPage() {
                       {!coords && (
                         <li className="empty">Ative a localização para ver restaurantes perto de você.</li>
                       )}
-              {restaurants.map((r) => (
-                <li key={r.id}>
+              {restaurants.map((r, index) => (
+                <li key={r.id != null ? String(r.id) : `rest-${index}`}>
                   <button
                     type="button"
                     className={`rest ${selectedId === r.id ? "is-selected" : ""}`}
@@ -1749,14 +1984,33 @@ html[data-theme="dark"] .banner.warn{background:#78350F;color:#FDE68A}
 .fav-workspace{display:grid;gap:var(--gap);align-items:stretch}
 .fav-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;align-content:start}
 .fav-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);
+  display:flex;flex-direction:column;gap:0;
+  padding:8px 10px 8px 8px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);
 }
 .fav-row.is-selected{border-color:var(--orange);background:var(--cream)}
-.fav-row-info{min-width:0;display:grid;gap:3px}
-.fav-row-info strong{font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fav-row-info span{font-size:.82rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fav-row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+.fav-row-main{
+  min-width:0;flex:1;display:grid;gap:3px;text-align:left;
+  border:0;background:transparent;padding:6px 8px;border-radius:10px;
+  font:inherit;color:inherit;cursor:pointer;
+}
+.fav-row-main:hover{background:rgba(255,107,26,.08)}
+.fav-row-main:focus-visible{outline:2px solid var(--orange);outline-offset:1px}
+.fav-row-main strong{font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fav-row-main span{font-size:.82rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fav-row-actions{display:flex;align-items:center;gap:8px;flex:none}
+.fav-row-detail{
+  margin-top:8px;padding:12px 10px 8px;border-top:1px solid var(--line);
+  display:grid;gap:10px;
+}
+.fav-row-detail h2{
+  margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:1.15rem;letter-spacing:-.02em;
+}
+.fav-row-detail .detail-kicker{margin:0}
+.fav-row-detail .detail-addr{margin:0}
+.fav-row-detail .detail-meta{margin:0}
+.fav-lunch-route{margin-top:2px}
+.fav-lunch-route .lunch-route-totals{margin-bottom:0}
 .fav-icon-btn{
   display:grid;place-items:center;width:38px;height:38px;padding:0;
   border:1px solid var(--line);border-radius:10px;background:var(--cream);

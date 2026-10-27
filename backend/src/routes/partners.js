@@ -274,7 +274,10 @@ router.post("/register", async (req, res, next) => {
       };
 
       await new Promise((resolve, reject) => {
-        req.login(user, (err) => (err ? reject(err) : resolve()));
+        req.login(user, (err) => {
+          if (err) return reject(err);
+          req.session.save((saveErr) => (saveErr ? reject(saveErr) : resolve()));
+        });
       });
     } else {
       const owned = await getOwned(userId);

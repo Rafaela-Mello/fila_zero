@@ -65,14 +65,17 @@ app.use(
       tableName: "session",
       createTableIfMissing: true,
     }),
+    name: "filazero.sid",
     secret: process.env.SESSION_SECRET || "dev-only-change-me",
     resave: false,
     saveUninitialized: false,
     proxy: true,
     cookie: {
       httpOnly: true,
-      sameSite: isProd ? "none" : "lax",
+      // Front faz proxy same-origin na Vercel → lax; none só se COOKIE_SAMESITE=none (API em outro domínio direto)
+      sameSite: process.env.COOKIE_SAMESITE === "none" ? "none" : "lax",
       secure: isProd,
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })

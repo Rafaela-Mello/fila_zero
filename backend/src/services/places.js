@@ -230,7 +230,8 @@ function mapOsmElement(el, userLat, userLng) {
 
 function buildOverpassQuery(lat, lng, radius) {
   // Busca ampla; filtro self-service é aplicado depois no Node (dados OSM raramente têm a tag)
-  return `[out:json][timeout:25];
+  // timeout baixo: Vercel Hobby corta ~10s; Overpass longo = 504 no mapa
+  return `[out:json][timeout:8];
 (
   node["amenity"="restaurant"](around:${radius},${lat},${lng});
   way["amenity"="restaurant"](around:${radius},${lat},${lng});
@@ -253,6 +254,7 @@ async function fetchOverpass(query) {
           "User-Agent": "FilaZero/0.1 (projeto IFSP; contato local)",
         },
         body: `data=${encodeURIComponent(query)}`,
+        signal: AbortSignal.timeout(9000),
       });
 
       if (!res.ok) {

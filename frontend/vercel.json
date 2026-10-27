@@ -11,6 +11,10 @@
     {
       "source": "/uploads/:path*",
       "destination": "https://fila-zero-one.vercel.app/uploads/:path*"
+    },
+    {
+      "source": "/((?!api/|auth/|uploads/).*)",
+      "destination": "/index.html"
     }
   ]
 }

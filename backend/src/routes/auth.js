@@ -34,6 +34,17 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Garante que a sessão foi gravada no Postgres antes da resposta (crítico na Vercel). */
+function loginAndRespond(req, res, next, user, status = 200) {
+  req.login(user, (err) => {
+    if (err) return next(err);
+    req.session.save((saveErr) => {
+      if (saveErr) return next(saveErr);
+      return res.status(status).json({ user });
+    });
+  });
+}
+
 router.post("/register", async (req, res, next) => {
   try {
     const name = String(req.body.name || "").trim();
@@ -65,11 +76,7 @@ router.post("/register", async (req, res, next) => {
       result.insertId,
     ]);
     const user = publicUser(rows[0]);
-
-    req.login(user, (err) => {
-      if (err) return next(err);
-      return res.status(201).json({ user });
-    });
+    return loginAndRespond(req, res, next, user, 201);
   } catch (err) {
     next(err);
   }
@@ -104,10 +111,7 @@ router.post("/login", async (req, res, next) => {
     }
 
     const user = publicUser(row);
-    req.login(user, (err) => {
-      if (err) return next(err);
-      return res.json({ user });
-    });
+    return loginAndRespond(req, res, next, user);
   } catch (err) {
     next(err);
   }
@@ -131,8 +135,11 @@ router.get(
       session: true,
     })(req, res, next);
   },
-  (_req, res) => {
-    res.redirect(`${frontendUrl()}/app`);
+  (req, res, next) => {
+    req.session.save((err) => {
+      if (err) return next(err);
+      res.redirect(`${frontendUrl()}/app`);
+    });
   }
 );
 
@@ -192,10 +199,7 @@ router.patch("/profile", async (req, res, next) => {
       current.id,
     ]);
     const user = publicUser(rows[0]);
-    req.login(user, (err) => {
-      if (err) return next(err);
-      return res.json({ user });
-    });
+    return loginAndRespond(req, res, next, user);
   } catch (err) {
     next(err);
   }
@@ -250,10 +254,12 @@ router.post("/password", async (req, res, next) => {
 
 function clearSessionCookie(res) {
   const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
-  res.clearCookie("connect.sid", {
+  const sameSite = process.env.COOKIE_SAMESITE === "none" ? "none" : "lax";
+  res.clearCookie("filazero.sid", {
     httpOnly: true,
-    sameSite: isProd ? "none" : "lax",
+    sameSite,
     secure: isProd,
+    path: "/",
   });
 }
 

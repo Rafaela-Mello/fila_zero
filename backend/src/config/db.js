@@ -27,6 +27,14 @@ function adaptMysqlDialect(sql) {
     .replace(/\bDATE\(([^)]+)\)/gi, "($1)::date");
 }
 
+/**
+ * Postgres/node-pg devolve aliases sem aspas em minúsculo (placeName → placename).
+ * Aspas preservam camelCase usado pelo frontend.
+ */
+function quoteCamelCaseAliases(sql) {
+  return sql.replace(/\bAS\s+([a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*)\b/g, 'AS "$1"');
+}
+
 function databaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
 
@@ -54,7 +62,8 @@ export function getPool() {
     pool = new Pool({
       connectionString,
       ssl: process.env.DB_SSL === "false" ? false : { rejectUnauthorized: false },
-      max: Number(process.env.DB_POOL_MAX || 5),
+      // Serverless: poucas conexões por instância (Supabase free estoura fácil)
+      max: Number(process.env.DB_POOL_MAX || 2),
       connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
       idleTimeoutMillis: 10000,
     });
@@ -68,7 +77,7 @@ export function getPool() {
  * - INSERT com id → rows + `.insertId`
  */
 export async function query(sql, params = []) {
-  let text = adaptMysqlDialect(toPgPlaceholders(sql));
+  let text = quoteCamelCaseAliases(adaptMysqlDialect(toPgPlaceholders(sql)));
   const isInsert = /^\s*INSERT\s+/i.test(text);
   if (isInsert && !/\bRETURNING\b/i.test(text)) {
     text = `${text.replace(/;?\s*$/, "")} RETURNING id`;

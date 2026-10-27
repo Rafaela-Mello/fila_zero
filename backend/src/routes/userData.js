@@ -49,11 +49,16 @@ router.post("/favorites", async (req, res) => {
   }
 });
 
-router.delete("/favorites/:placeId", async (req, res) => {
+// placeId via query: ids OSM tipo "node/123" quebram path com barra
+router.delete("/favorites", async (req, res) => {
   try {
+    const placeId = String(req.query.placeId || "").trim();
+    if (!placeId) {
+      return res.status(400).json({ error: "Informe placeId." });
+    }
     await query(`DELETE FROM favorites WHERE user_id = ? AND place_id = ?`, [
       req.user.id,
-      req.params.placeId,
+      placeId,
     ]);
     res.json({ ok: true });
   } catch (err) {
