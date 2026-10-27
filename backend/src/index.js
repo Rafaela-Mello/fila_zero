@@ -1,2 +1,2 @@
-// Preferir a entry na raiz: `node index.js` (local e Vercel).
-import "../index.js";
+// Compat: use a entry da raiz (`node index.js` / Vercel main).
+export { default } from "../index.js";

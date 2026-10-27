@@ -13,7 +13,7 @@ Projeto de Empreendedorismo — IFSP.
 | Health check | https://fila-zero-one.vercel.app/api/health |
 
 - **Frontend** na Vercel (preset Vite, root `frontend`) — `vercel.json` faz proxy de `/api`, `/auth` e `/uploads` para o backend.
-- **Backend** na Vercel (root `backend`) — Express em serverless (`api/index.js`).
+- **Backend** na Vercel (root `backend`) — Express zero-config (`index.js` exporta o app). Não use pasta `api/` (ela intercepta `/api/*`).
 - **Banco** no **Supabase** (Postgres). Fotos do cardápio no **Supabase Storage** (bucket público `menu`).
 
 ## O que tem
