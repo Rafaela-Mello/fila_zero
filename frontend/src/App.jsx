@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "./pages/LandingPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
-import PartnerRegisterPage from "./pages/PartnerRegisterPage.jsx";
 import PartnerDashboardPage from "./pages/PartnerDashboardPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
@@ -17,7 +16,7 @@ function ProtectedRoute({ children }) {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -34,7 +33,10 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/parceiro/cadastro" element={<PartnerRegisterPage />} />
+      <Route
+        path="/parceiro/cadastro"
+        element={<Navigate to="/login?mode=register&tipo=restaurante" replace />}
+      />
       <Route path="/parceiro" element={<PartnerDashboardPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

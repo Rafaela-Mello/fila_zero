@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext(null);
 
@@ -12,6 +13,7 @@ async function parseError(res) {
 }
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +66,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     await fetch("/auth/logout", { method: "POST", credentials: "include" });
     setUser(null);
+    navigate("/", { replace: true });
   };
 
   const updateProfile = async ({ name, email }) => {

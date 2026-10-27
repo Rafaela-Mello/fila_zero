@@ -460,7 +460,7 @@ export default function DashboardPage() {
                 Painel restaurante
               </Link>
             ) : (
-              <Link to="/parceiro/cadastro" className="side-rail-item">
+              <Link to="/login?mode=register&tipo=restaurante" className="side-rail-item">
                 Sou restaurante
               </Link>
             )}

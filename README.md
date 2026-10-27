@@ -9,10 +9,10 @@ Projeto de Empreendedorismo — IFSP.
 | Rota | O que é |
 |------|---------|
 | `/` | Landing |
-| `/login` | Cadastro, login e Google (opcional) |
+| `/login` | Entrar / cadastrar (e-mail e senha) — escolha **Cliente** ou **Restaurante** no cadastro |
 | `/app` | App do cliente: Explorar, favoritos, histórico, assistente e Minha conta |
-| `/parceiro/cadastro` | Cadastro do restaurante parceiro |
 | `/parceiro` | Painel do restaurante |
+| `/parceiro/cadastro` | Redireciona para `/login?mode=register&tipo=restaurante` |
 
 ### Cliente (`/app`)
 
@@ -77,16 +77,6 @@ Se o Node está no WSL e o MySQL no Windows, `DB_HOST` **não** é `localhost`.
 Use o IP do Windows visto pelo WSL (ex.: `172.23.128.1`) e um usuário com host `%` (ex.: `filazero`).
 
 Detalhes das variáveis: `backend/.env.example`.
-
-## Login com Google (opcional)
-
-Só se quiser o botão “Entrar com Google”:
-
-1. Google Cloud → credencial OAuth **Web**
-2. Redirect: `http://localhost:3001/auth/google/callback`
-3. Coloque `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` no `.env`
-
-Cadastro com e-mail/senha funciona sem isso.
 
 ## Assistente (opcional)
 

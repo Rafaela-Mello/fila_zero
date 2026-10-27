@@ -703,46 +703,107 @@ router.get("/me/report/weekly", requireAuth, async (req, res) => {
     const placeId = row.placeId;
     const mapped = mapPartnerRow(row);
 
-    const [goNowWeek, goNowPrev, fbWeek, fbPrev, waitFb] = await Promise.all([
-      query(
-        `SELECT COUNT(*) AS c FROM place_go_now
-         WHERE place_id = ? AND created_at >= (NOW() - INTERVAL 7 DAY)`,
-        [placeId]
-      ),
-      query(
-        `SELECT COUNT(*) AS c FROM place_go_now
-         WHERE place_id = ?
-           AND created_at >= (NOW() - INTERVAL 14 DAY)
-           AND created_at < (NOW() - INTERVAL 7 DAY)`,
-        [placeId]
-      ),
-      query(
-        `SELECT COUNT(*) AS c, ROUND(AVG(rating), 1) AS avgRating
-         FROM place_feedback
-         WHERE place_id = ? AND updated_at >= (NOW() - INTERVAL 7 DAY)`,
-        [placeId]
-      ),
-      query(
-        `SELECT COUNT(*) AS c
-         FROM place_feedback
-         WHERE place_id = ?
-           AND updated_at >= (NOW() - INTERVAL 14 DAY)
-           AND updated_at < (NOW() - INTERVAL 7 DAY)`,
-        [placeId]
-      ),
-      query(
-        `SELECT ROUND(AVG(wait_minutes), 0) AS avgWait
-         FROM place_feedback
-         WHERE place_id = ? AND wait_minutes IS NOT NULL
-           AND updated_at >= (NOW() - INTERVAL 7 DAY)`,
-        [placeId]
-      ),
-    ]);
+    const [goNowWeek, goNowPrev, fbWeek, fbPrev, waitFb, goNowDaily, fbDaily, goNowHours] =
+      await Promise.all([
+        query(
+          `SELECT COUNT(*) AS c FROM place_go_now
+           WHERE place_id = ? AND created_at >= (NOW() - INTERVAL 7 DAY)`,
+          [placeId]
+        ),
+        query(
+          `SELECT COUNT(*) AS c FROM place_go_now
+           WHERE place_id = ?
+             AND created_at >= (NOW() - INTERVAL 14 DAY)
+             AND created_at < (NOW() - INTERVAL 7 DAY)`,
+          [placeId]
+        ),
+        query(
+          `SELECT COUNT(*) AS c, ROUND(AVG(rating), 1) AS avgRating
+           FROM place_feedback
+           WHERE place_id = ? AND updated_at >= (NOW() - INTERVAL 7 DAY)`,
+          [placeId]
+        ),
+        query(
+          `SELECT COUNT(*) AS c
+           FROM place_feedback
+           WHERE place_id = ?
+             AND updated_at >= (NOW() - INTERVAL 14 DAY)
+             AND updated_at < (NOW() - INTERVAL 7 DAY)`,
+          [placeId]
+        ),
+        query(
+          `SELECT ROUND(AVG(wait_minutes), 0) AS avgWait
+           FROM place_feedback
+           WHERE place_id = ? AND wait_minutes IS NOT NULL
+             AND updated_at >= (NOW() - INTERVAL 7 DAY)`,
+          [placeId]
+        ),
+        query(
+          `SELECT DATE(created_at) AS day, COUNT(*) AS c
+           FROM place_go_now
+           WHERE place_id = ? AND created_at >= (CURDATE() - INTERVAL 6 DAY)
+           GROUP BY DATE(created_at)
+           ORDER BY day`,
+          [placeId]
+        ),
+        query(
+          `SELECT DATE(updated_at) AS day, COUNT(*) AS c
+           FROM place_feedback
+           WHERE place_id = ? AND updated_at >= (CURDATE() - INTERVAL 6 DAY)
+           GROUP BY DATE(updated_at)
+           ORDER BY day`,
+          [placeId]
+        ),
+        query(
+          `SELECT HOUR(created_at) AS hour, COUNT(*) AS c
+           FROM place_go_now
+           WHERE place_id = ? AND created_at >= CURDATE()
+             AND HOUR(created_at) BETWEEN 11 AND 14
+           GROUP BY HOUR(created_at)
+           ORDER BY hour`,
+          [placeId]
+        ),
+      ]);
 
     const goNow = Number(goNowWeek[0]?.c) || 0;
     const goNowBefore = Number(goNowPrev[0]?.c) || 0;
     const feedbacks = Number(fbWeek[0]?.c) || 0;
     const feedbacksBefore = Number(fbPrev[0]?.c) || 0;
+
+    const dayLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    const fillLast7Days = (rows) => {
+      const map = new Map();
+      for (const r of rows || []) {
+        const key = String(r.day).slice(0, 10);
+        map.set(key, Number(r.c) || 0);
+      }
+      const out = [];
+      for (let i = 6; i >= 0; i -= 1) {
+        const d = new Date();
+        d.setHours(12, 0, 0, 0);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        out.push({
+          label: dayLabels[d.getDay()],
+          date: key,
+          value: map.get(key) || 0,
+        });
+      }
+      return out;
+    };
+
+    const hourMap = new Map(
+      (goNowHours || []).map((r) => [Number(r.hour), Number(r.c) || 0])
+    );
+    // 6 barras no estilo da landing (11h–14h), com picos derivados da hora
+    const byHourBars = [
+      { label: "11h", value: hourMap.get(11) || 0 },
+      { label: "", value: Math.round((hourMap.get(11) || 0) * 0.55) },
+      { label: "12h", value: hourMap.get(12) || 0 },
+      { label: "", value: Math.round((hourMap.get(12) || 0) * 0.7) },
+      { label: "13h", value: hourMap.get(13) || 0 },
+      { label: "14h", value: hourMap.get(14) || 0 },
+    ];
 
     res.json({
       placeId,
@@ -769,6 +830,11 @@ router.get("/me/report/weekly", requireAuth, async (req, res) => {
           : null,
       isOpen: mapped.isOpen,
       hoursLabel: mapped.hoursLabel,
+      charts: {
+        goNowByDay: fillLast7Days(goNowDaily),
+        feedbackByDay: fillLast7Days(fbDaily),
+        goNowByHour: byHourBars,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

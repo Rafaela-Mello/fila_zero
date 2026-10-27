@@ -241,7 +241,7 @@ function Hero() {
           </p>
           <div className="cta-row">
             <Link to="/login" className="btn btn-primary">Consultar Restaurantes Próximos</Link>
-            <Link to="/parceiro/cadastro" className="btn btn-ghost">Sou um Restaurante</Link>
+            <Link to="/login?mode=register&tipo=restaurante" className="btn btn-ghost">Sou um Restaurante</Link>
           </div>
           <ul className="trust">
             <li><Icon.Check /> Grátis para quem almoça</li>
@@ -353,7 +353,7 @@ function ForRestaurants() {
               <li key={b}><span className="check"><Icon.Check /></span>{b}</li>
             ))}
           </ul>
-          <Link to="/parceiro/cadastro" className="btn btn-light">
+          <Link to="/login?mode=register&tipo=restaurante" className="btn btn-light">
             Cadastrar meu restaurante
           </Link>
           <p className="b2b-note">Sem fidelidade. Cancele quando quiser.</p>
@@ -748,7 +748,13 @@ html[data-theme="dark"] .b2b-note{color:#6B7280}
 html[data-theme="dark"] .stat{background:#fff;border-color:#E8E0D6}
 html[data-theme="dark"] .stat span{color:#6B7280}
 html[data-theme="dark"] .stat strong{color:var(--orange-dark)}
-html[data-theme="dark"] .bars i{background:#E5D9CB}
+html[data-theme="dark"] .bars i{
+  background:linear-gradient(180deg,#FFB26A 0%,#FF8A3D 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
+}
+html[data-theme="dark"] .bars i.peak{
+  background:linear-gradient(180deg,#FF8A3D 0%,#E5560A 100%);
+}
 html[data-theme="dark"] .bars-x{color:#6B7280}
 
 /* Depoimentos */

@@ -91,6 +91,37 @@ function formatReviewWhen(value) {
   }
 }
 
+function ReportBars({ series = [], ariaLabel }) {
+  const max = Math.max(1, ...series.map((s) => Number(s.value) || 0));
+  const peak = Math.max(...series.map((s) => Number(s.value) || 0));
+  const xLabels = series.map((s) => s.label).filter(Boolean);
+  return (
+    <div className="report-chart" aria-label={ariaLabel}>
+      <div className="report-bars" role="img" aria-label={ariaLabel}>
+        {series.map((s, i) => {
+          const value = Number(s.value) || 0;
+          const h = Math.max(6, Math.round((value / max) * 100));
+          return (
+            <i
+              key={`${s.label || "b"}-${i}`}
+              style={{ height: `${h}%` }}
+              className={value > 0 && value === peak ? "peak" : ""}
+              title={`${s.label || ""}: ${value}`}
+            />
+          );
+        })}
+      </div>
+      {xLabels.length ? (
+        <div className="report-bars-x">
+          {series.map((s, i) => (
+            <span key={`x-${i}`}>{s.label || ""}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function compressImageFile(file, maxSize = 900, quality = 0.78) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type?.startsWith("image/")) {
@@ -315,11 +346,11 @@ export default function PartnerDashboardPage() {
   }, []);
 
   if (!loading && !user) {
-    return <Navigate to="/login?next=/parceiro" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (!boot && user && !restaurant) {
-    return <Navigate to="/parceiro/cadastro" replace />;
+    return <Navigate to="/login?mode=register&tipo=restaurante" replace />;
   }
 
   const goPanel = (id) => {
@@ -1500,6 +1531,40 @@ export default function PartnerDashboardPage() {
                             <span>Espera relatada (min)</span>
                           </div>
                         </div>
+
+                        <div className="report-charts">
+                          <section className="pd-card report-chart-card">
+                            <div className="account-card-head">
+                              <h3>Vou agora por dia</h3>
+                              <p>Cliques dos últimos 7 dias.</p>
+                            </div>
+                            <ReportBars
+                              series={weeklyReport.charts?.goNowByDay || []}
+                              ariaLabel="Gráfico de Vou agora por dia"
+                            />
+                          </section>
+                          <section className="pd-card report-chart-card">
+                            <div className="account-card-head">
+                              <h3>Feedbacks por dia</h3>
+                              <p>Avaliações recebidas na semana.</p>
+                            </div>
+                            <ReportBars
+                              series={weeklyReport.charts?.feedbackByDay || []}
+                              ariaLabel="Gráfico de feedbacks por dia"
+                            />
+                          </section>
+                          <section className="pd-card report-chart-card report-chart-wide">
+                            <div className="account-card-head">
+                              <h3>Fluxo de hoje (11h–14h)</h3>
+                              <p>“Vou agora” no horário de almoço — no estilo do painel da landing.</p>
+                            </div>
+                            <ReportBars
+                              series={weeklyReport.charts?.goNowByHour || []}
+                              ariaLabel="Gráfico de fluxo por horário"
+                            />
+                          </section>
+                        </div>
+
                         <section className="pd-card">
                           <div className="account-card-head">
                             <h3>Snapshot atual</h3>
@@ -2057,6 +2122,35 @@ html[data-theme="dark"] .fb-tag.real{background:#14532D;color:#86EFAC}
 .report-title{margin:0;font-family:'Bricolage Grotesque',sans-serif;font-size:1.6rem;letter-spacing:-.02em}
 .report-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 .report-delta{font-size:.72rem;font-weight:700;color:var(--muted);font-style:normal}
+.report-charts{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.report-chart-wide{grid-column:1 / -1}
+.report-chart{display:grid;gap:8px}
+.report-bars{
+  display:flex;align-items:flex-end;gap:8px;height:120px;padding:8px 4px 0;
+  border-radius:14px;background:var(--bg);border:1px solid var(--line);
+}
+.report-bars i{
+  flex:1;min-width:0;border-radius:6px 6px 0 0;
+  background:linear-gradient(180deg,#FFB26A 0%,#FF8A3D 100%);
+}
+.report-bars i.peak{
+  background:linear-gradient(180deg,#FF8A3D 0%,var(--orange-dark) 100%);
+}
+html[data-theme="dark"] .report-bars{
+  background:#12161C;border-color:#2A313A;
+}
+html[data-theme="dark"] .report-bars i{
+  background:linear-gradient(180deg,#FFB26A 0%,#FF8A3D 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+}
+html[data-theme="dark"] .report-bars i.peak{
+  background:linear-gradient(180deg,#FF9A4A 0%,#E5560A 100%);
+}
+.report-bars-x{
+  display:flex;justify-content:space-between;gap:4px;
+  font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;
+}
+.report-bars-x span{flex:1;text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .report-snapshot{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .report-snapshot li{
   display:flex;justify-content:space-between;gap:16px;padding:12px 0;
@@ -2093,7 +2187,8 @@ html[data-theme="dark"] .pd-error{color:#FCA5A5}
   .wait-custom .btn-search{width:100%}
   .wait-open-toggle,.wait-capacity-fields{grid-template-columns:1fr}
   .wait-reminder .btn-search{width:100%}
-  .fb-stat-grid,.report-stats{grid-template-columns:1fr 1fr}
+  .fb-stat-grid,.report-stats,.report-charts{grid-template-columns:1fr}
+  .report-chart-wide{grid-column:auto}
   .fb-filters{width:100%}
   .fb-filter{flex:1}
   .hours-row{grid-template-columns:1fr 1fr;gap:8px}
