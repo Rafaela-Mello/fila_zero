@@ -45,10 +45,18 @@ export function getPool() {
         "Defina DATABASE_URL no .env (Supabase → Project Settings → Database → URI)."
       );
     }
+    try {
+      const host = new URL(connectionString).host;
+      console.log(`[db] Postgres pool → ${host}`);
+    } catch {
+      console.log("[db] Postgres pool → (DATABASE_URL inválida)");
+    }
     pool = new Pool({
       connectionString,
       ssl: process.env.DB_SSL === "false" ? false : { rejectUnauthorized: false },
       max: Number(process.env.DB_POOL_MAX || 5),
+      connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+      idleTimeoutMillis: 10000,
     });
   }
   return pool;

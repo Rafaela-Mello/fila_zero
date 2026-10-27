@@ -66,9 +66,19 @@ app.use(passport.session());
 app.get("/api/health", async (_req, res) => {
   try {
     const dbOk = await pingDb();
-    res.json({ ok: true, db: dbOk });
+    res.json({
+      ok: true,
+      db: dbOk,
+      engine: "postgres",
+      frontendUrl,
+    });
   } catch (err) {
-    res.status(500).json({ ok: false, db: false, error: err.message });
+    res.status(500).json({
+      ok: false,
+      db: false,
+      engine: "postgres",
+      error: err.message,
+    });
   }
 });
 
