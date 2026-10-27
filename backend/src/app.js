@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { configurePassport } from "./config/passport.js";
 import { pingDb, getPool } from "./config/db.js";
+import { ensureSchema } from "./db/ensureSchema.js";
 import authRoutes from "./routes/auth.js";
 import restaurantsRoutes from "./routes/restaurants.js";
 import geoRoutes from "./routes/geo.js";
@@ -28,9 +29,25 @@ const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
 const PgSession = connectPgSimple(session);
 
+let schemaReady;
+async function bootSchema() {
+  if (!schemaReady) {
+    schemaReady = ensureSchema().catch((err) => {
+      console.error("[db] ensureSchema falhou:", err.message || err);
+      schemaReady = null;
+    });
+  }
+  return schemaReady;
+}
+
 configurePassport();
 
 app.set("trust proxy", 1);
+
+app.use(async (_req, _res, next) => {
+  await bootSchema();
+  next();
+});
 
 app.use(
   cors({

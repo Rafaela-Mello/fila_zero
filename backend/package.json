@@ -7,8 +7,8 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
+    "dev": "node --watch index.js",
+    "start": "node index.js",
     "db:init": "node src/db/init.js"
   },
   "dependencies": {
